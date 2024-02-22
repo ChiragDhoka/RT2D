@@ -203,14 +203,6 @@ int compute_features(Mat src, Mat& dst, vector<region_features>& features) {
 
         // calculate moment, center, vertices of bounding box
         moment = moments(contours[i]);
-        // Print moments to console
-        cout << "Region " << i << " Moments:" << endl;
-        cout << "m00: " << moment.m00 << endl;
-        cout << "m10: " << moment.m10 << endl;
-        cout << "m01: " << moment.m01 << endl;
-        cout << "m20: " << moment.m20 << endl;
-        cout << "m11: " << moment.m11 << endl;
-        cout << "m02: " << moment.m02 << endl;
         center = Point2f(moment.m10 / moment.m00,
             moment.m01 / moment.m00);
         RotatedRect rect = minAreaRect(contours[i]);
