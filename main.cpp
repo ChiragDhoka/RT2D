@@ -8,7 +8,6 @@
 using namespace std;
 using namespace cv;
 
-
 std::vector<std::vector<float>> convert_features_to_float(const std::vector<region_features>& features) {
     std::vector<std::vector<float>> float_features;
     for (const auto& feature : features) {
@@ -21,21 +20,39 @@ std::vector<std::vector<float>> convert_features_to_float(const std::vector<regi
     return float_features;
 }
 
+// Data type to store image ID and distance from target image together
+struct ImageData {
+    // the image filename
+    std::string ID;
+    // the distance from the target image data
+    std::vector<float> featureVector;
+    // distance from frame
+    float distance;
+};
+
+//struct region_features {
+//    float ratio;
+//    float percent_filled;
+//};
+
 int main(int argc, char* argv[]) {
 
-    int threshold = 75;
-    char filename[256] = "D:/My source/Spring2024/PRCV/c++/recognition/ObjectRecognition/features.csv";
-    std::vector<char*> filenames;
+    int threshold = 110;
     vector<region_features> features;
+    char CSV_FILE[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+    std::vector<char*> filenames;
 
     Mat originalFrame, thresholdingFrame, cleanUpFrame, segmentedFrame, colorSegmentedFrame, featureImageFrame;
 
     // Store connectcomponents() parameters 
     Mat labels, stats, centroids;
+    int image_nLabels;
 
     //test on images 
-    string image = "D:/My source/Spring2024/PRCV/Project 1 images/img2P3.png";
-    Mat imageMat = imread(image);
+    string IMAGE_FILE = "C:/Users/visar/Desktop/img1p3.png";
+    //string CSV_FILE = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+
+    Mat imageMat = imread(IMAGE_FILE);
 
     // Open the video device
     VideoCapture* capdev = new cv::VideoCapture(0);
@@ -62,47 +79,36 @@ int main(int argc, char* argv[]) {
             cerr << "Frame is empty" << endl;
             break;
         }
-        //imshow("Video", originalFrame);
+        imshow("Video", originalFrame);
 
         // Process image with thresholding and cleanup
         thresholdingFrame = thresholding(originalFrame, threshold);
         cleanUpFrame = morphological_operation(thresholdingFrame, cleanUpFrame);
         segmentedFrame = segment(cleanUpFrame, segmentedFrame, colorSegmentedFrame, labels, stats, centroids);
+        features.clear();
+        vector<float> allHuMoments = compute_features(segmentedFrame, featureImageFrame, features);
 
         imshow("After Thresholding", thresholdingFrame);
-        imshow("Clean Image", cleanUpFrame);
+        //imshow("Clean Image", cleanUpFrame);
         imshow("Segmented image", segmentedFrame);
-        imshow("Colored Segmented image", colorSegmentedFrame);
+        //imshow("Colored Segmented image", colorSegmentedFrame);
+        
+        // Store the ID and feature vector of the image
+        ImageData currentImage;
 
-        features.clear();
-        compute_features(segmentedFrame, featureImageFrame, features);
-        // Print region features on the screen
-        for (int i = 0; i < features.size(); ++i) {
-            region_features region = features[i];
-            // Print ratio and percent_filled values on the screen
-            std::stringstream ss;
-            ss << "Region " << i << ": Ratio=" << region.ratio << ", Percent Filled=" << region.percent_filled;
-            cv::putText(featureImageFrame, ss.str(), cv::Point(10, 30 + i * 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-        }
+        // Store the huMoments vector as the database image's feature vector
+        currentImage.featureVector = allHuMoments;
+
+        append_image_data_csv(CSV_FILE, "huMoments", allHuMoments, 0);
 
         // Append features to CSV file      
         std::vector<std::vector<float>> features_data = convert_features_to_float(features);
-        append_image_data_csv(filename, "D:/My source/Spring2024/PRCV/Project 1 images/img2P3.png", features_data[0], 0);
-        //for (const auto& row : features_data) {
-        //    for (float value : row) {
-        //        std::cout << value << " ";
-        //    }
-        //    std::cout << std::endl;
-        //}
-        //read image features from the csv file
-        //read_image_data_csv(filename, filenames, features_data, 1);
-        
-        // Display the image with text
+        append_image_data_csv(CSV_FILE, "Webcam Data", features_data[0], 0);
+
         imshow("Boxes and axis", featureImageFrame);
 
-
         // Exit loop if 'q' is pressed
-        char c = (char)waitKey(25);
+        char c = (char)waitKey(5);
         if (c == 'q' || c == 27 || c == 'Q') { // 27 is ASCII for ESC
             break;
         }

@@ -23,4 +23,6 @@ Mat morphological_operation(Mat src, Mat& dst);
 Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& centroids);
 
 /* TASK 4 */
-int compute_features(Mat src, Mat& dst, vector<region_features>& features);
+vector<float> compute_features(Mat src, Mat& dst, vector<region_features>& features);
+
+//std::vector<float> feature_computation(cv::Mat& src, cv::Mat& src_regions, cv::Mat& dst, cv::Mat stats, int nLabels);

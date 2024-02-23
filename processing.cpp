@@ -3,6 +3,7 @@
 #include <vector>
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
+#include "csv_util.h"
 
 using namespace std;
 using namespace cv;
@@ -11,6 +12,7 @@ using namespace cv;
 struct region_features {
     double ratio;
     double percent_filled;
+    vector<double> huMoments;
 };
 
 /*------------------ TASK 1 ------------------------------------------------------------------*/
@@ -111,15 +113,16 @@ Mat customDilate(const Mat& src, const vector<vector<int>>& element) {
 
 Mat morphological_operation(Mat src, Mat& dst) {
 
-    Mat erode = src.clone();
+    Mat dilated = src.clone();
     auto structElem = createStructuringElement(3, 3);
 
     // Perform custom erosion and dilation
-    Mat erodedImage = customErode(erode, structElem);
-    Mat dilated = erodedImage.clone();
     Mat dilatedImage = customDilate(dilated, structElem);
+    Mat erode = dilatedImage.clone();
 
-    dst = dilatedImage;
+    Mat erodedImage = customErode(erode, structElem);
+   
+    dst = erodedImage;
 
     return dst;
 }
@@ -130,6 +133,7 @@ Mat morphological_operation(Mat src, Mat& dst) {
   Parameters: a src image to be sampled from, then Mat data types for labels, stats, and centroid calculation.
   Returns: a segmented, region colored version of the src image
 */
+
 Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& centroids) {
 
     std::cout << "originalFrame channels: " << src.channels() << std::endl;
@@ -148,9 +152,12 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
     // set background to black
     colors[0] = Vec3b(0, 0, 0);
     intensity[0] = Vec3b(0, 0, 0);
+    
     int area = 0;
+    
     for (int i = 1; i < num; i++) {
-        colors[i] = Vec3b(120*i, 140*i, 256*i);
+        
+        colors[i] = Vec3b(255*i % 256, 170*i % 256, 200*i % 256);
         intensity[i] = Vec3b(255, 255, 255);
 
         // keep only the largest region
@@ -185,70 +192,160 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
 
 /*------------------ TASK 4 ------------------------------------------------------------------*/
 /*Computes a set of features for a specified region given a region map and a region ID. */
-int compute_features(Mat src, Mat& dst, vector<region_features>& features) {
 
+vector<float> compute_features(Mat src, Mat& dst, vector<region_features>& features) {
     dst = src.clone();
 
     vector<vector<Point>> contours;
     vector<Vec4i> hierarchy;
     Mat gray_pic;
     cvtColor(src, gray_pic, COLOR_BGR2GRAY);
-    findContours(gray_pic, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_NONE, Point());
+    findContours(gray_pic, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point());
 
-    Moments moment;
-    Point2f center;
-    Point2f vertex[4];
-    for (int i = 0; i < contours.size(); i++) {
+    vector<float> allHuMoments; // Container for all Hu Moments from all contours
+
+    for (size_t i = 0; i < contours.size(); i++) {
         region_features tmp;
 
-        // calculate moment, center, vertices of bounding box
-        moment = moments(contours[i]);
-        center = Point2f(moment.m10 / moment.m00,
-            moment.m01 / moment.m00);
-        RotatedRect rect = minAreaRect(contours[i]);
-        double angle = 0.5 * atan((2 * moment.m11) / (moment.m20 - moment.m02));
-        int len = max(rect.size.height, rect.size.width);
-        int x1 = (moment.m10 / moment.m00) + len / 2 * cos(angle);
-        int y1 = (moment.m01 / moment.m00) - len / 2 * sin(angle);
-        int x2 = (moment.m10 / moment.m00) - len / 2 * cos(angle);
-        int y2 = (moment.m01 / moment.m00) + len / 2 * sin(angle);
-        line(dst, Point2f(x1, y1), Point2f(x2, y2), Scalar(0, 0, 255), 2, LINE_8);
+        // Calculating Moments for each contour
+        Moments moment = moments(contours[i], false);
 
-        vertex[4];
-        rect.points(vertex);
-        line(dst, vertex[0], vertex[1], Scalar(0, 0, 255), 2, LINE_8);
-        line(dst, vertex[1], vertex[2], Scalar(0, 0, 255), 2, LINE_8);
-        line(dst, vertex[2], vertex[3], Scalar(0, 0, 255), 2, LINE_8);
-        line(dst, vertex[3], vertex[0], Scalar(0, 0, 255), 2, LINE_8);
+        // Calculating Hu Moments
+        double hu[7];
+        HuMoments(moment, hu);
 
-        tmp.ratio = max(rect.size.height, rect.size.width) / min(rect.size.height, rect.size.width);
-        tmp.percent_filled = moment.m00 / (rect.size.height * rect.size.width);
+        // Log transform Hu Moments for normalization and add them to the vector
+        for (int j = 0; j < 7; j++) {
+            hu[j] = -1 * copysign(1.0, hu[j]) * log10(abs(hu[j]));
+            allHuMoments.push_back(hu[j]); // Adding transformed Hu Moments to the list
+        }
+
+        // Store the transformed Hu Moments in the struct as well
+        tmp.huMoments.assign(hu, hu + 7);
+
+        // Calculating centroid
+        Point2f centroid(moment.m10 / moment.m00, moment.m01 / moment.m00);
+
+        // Calculate minimum area rectangle and its properties
+        RotatedRect minAreaRec = minAreaRect(contours[i]);
+        Point2f rect_points[4];
+        minAreaRec.points(rect_points);
+        for (int j = 0; j < 4; j++) {
+            line(dst, rect_points[j], rect_points[(j + 1) % 4], Scalar(0, 255, 0), 2, LINE_8); // Drawing green rotated bounding box
+        }
+
+        // Assuming width > height for major and minor axis calculation
+        float width = max(minAreaRec.size.width, minAreaRec.size.height);
+        float height = min(minAreaRec.size.width, minAreaRec.size.height);
+
+        // Calculate and draw axis line for each region
+        double angle = minAreaRec.angle;
+        if (minAreaRec.size.width < minAreaRec.size.height) angle += 90.0; // Adjust angle if height is the major axis
+        double length = width; // Length of the axis line is consistent
+        Point2f endPoint(centroid.x + length * cos(angle * CV_PI / 180.0), centroid.y + length * sin(angle * CV_PI / 180.0));
+        line(dst, centroid, endPoint, Scalar(255, 0, 0), 2, LINE_8); // Drawing red axis line
+
+        // Store ratio and percent filled in the struct
+        tmp.ratio = width / height;
+        tmp.percent_filled = moment.m00 / (width * height);
+
         features.push_back(tmp);
     }
 
-    return 0;
+    // Optionally, annotate features on the dst image
+    for (size_t i = 0; i < features.size(); ++i) {
+        stringstream ss;
+        ss << "Region " << i + 1 << ": Ratio=" << features[i].ratio << ", Percent Filled=" << features[i].percent_filled;
+        putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1);
+    }
+
+    return allHuMoments; // Return the flat list of all Hu Moments
 }
 
-//int compute_features(Mat src, Mat& dst, vector<region_features>& features) {
-//    dst = src.clone();
+/* Computes huMoment feature vector, computes and displays oriented bounding box
+   Paramters: Mat src: binary image to be sampled from
+          Mat src_regions: colored_region image to sample for dst image
+          Mat dst: destination image, segmented, colored regions, bound box and first Hu Moment display
+          Mat stats: stats for bound box coordinates
+          int nLabels, number of regions in given frame
+   Returns:   Hu momoment feature vector of floating point numbers
+*/
+//std::vector<float> feature_computation(cv::Mat& src, cv::Mat& src_regions, cv::Mat& dst, cv::Mat stats, int nLabels) {
 //
-//    // Find connected components and retrieve statistics
-//    Mat labels, stats, centroids;
-//    int num_regions = connectedComponentsWithStats(src, labels, stats, centroids);
+//    // Necessary to get nLabels and stats, will refactor out later
+//    cv::Mat labels;
+//    cv::Mat centroids;
 //
-//    for (int i = 1; i < num_regions; ++i) {  // Start from 1 to skip background (0)
-//        region_features tmp;
+//    // Output of frame with bounding box
+//    dst = cv::Mat::zeros(src.size(), CV_8UC3);
+//    dst = src_regions;
 //
-//        // Extract properties of the current region
-//        int area = stats.at<int>(i, CC_STAT_AREA);
-//        double aspect_ratio = static_cast<double>(stats.at<int>(i, CC_STAT_WIDTH)) / stats.at<int>(i, CC_STAT_HEIGHT);
-//        double percent_filled = static_cast<double>(area) / (stats.at<int>(i, CC_STAT_WIDTH) * stats.at<int>(i, CC_STAT_HEIGHT));
+//    int min_size = 400;
 //
-//        // Store computed features
-//        tmp.ratio = aspect_ratio;
-//        tmp.percent_filled = percent_filled;
-//        features.push_back(tmp);
+//
+//    // Calculate moments
+//    cv::Moments moments = cv::moments(src, false);
+//    // Calculate Hu Moments
+//    double huMoments[7];
+//    cv::HuMoments(moments, huMoments);
+//    // Resulting hu moments have a HUGE range, use a log transform to bring them to same range
+//    for (int i = 0; i < 7; i++) {
+//        huMoments[i] = -1 * copysign(1.0, huMoments[i]) * log10(abs(huMoments[i]));
 //    }
 //
-//    return 0;
+//
+//    //Use openCV's connectedComponentsWithStats
+//    // returns the a 4 tuple of the total number of unique labels
+//    //         a mask named labels that has the same spacial dimensions as our input image
+//    //         stats: statistics on each connected component, including bound box coords and area
+//    //         centroids: x,y coords of each connected component
+//    nLabels = cv::connectedComponentsWithStats(src, labels, stats, centroids);
+//
+//    // Obtain bound box coords for each object
+//    // Draw bound box for each object
+//    for (int label = 1; label < nLabels; label++) {
+//        if (stats.at<int>(label, cv::CC_STAT_AREA) >= min_size) {
+//            std::vector<cv::Point> points;
+//            // Store the point for the top left vertex
+//            cv::Point top_left = cv::Point(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP));
+//            points.push_back(top_left);
+//            // Store the point for the top right vertex
+//            cv::Point top_right = cv::Point(stats.at<int>(label, cv::CC_STAT_WIDTH) + stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP));
+//            points.push_back(top_right);
+//            // Store the point for the bottom left vertex
+//            cv::Point bottom_left = cv::Point(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP) + stats.at<int>(label, cv::CC_STAT_HEIGHT));
+//            points.push_back(bottom_left);
+//            // Store the point for the bottom right vertex
+//            cv::Point bottom_right = cv::Point(stats.at<int>(label, cv::CC_STAT_WIDTH) + stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_HEIGHT) + stats.at<int>(label, cv::CC_STAT_TOP));
+//
+//            // Create the box based on the coordinates
+//            cv::RotatedRect box = cv::minAreaRect(cv::Mat(points));
+//
+//            // Draw the bound box
+//            cv::Point2f vertices[4];
+//            box.points(vertices);
+//            for (int i = 0; i < 4; ++i) {
+//                cv::line(dst, vertices[i], vertices[(i + 1) % 4], cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
+//            }
+//
+//
+//            // Display first region HuMoment for each region underneath the bounding box
+//            std::string firstHu = std::to_string(huMoments[0]);
+//            std::string text = "hu[0] =" + firstHu;
+//            cv::Point textCoords = (cv::Point(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP) + stats.at<int>(label, cv::CC_STAT_HEIGHT) + 40));
+//            //cv::Font font = cv::FONT_HERSHEY_SIMPLEX;
+//            int fontScale = 1;
+//            cv::Vec3b textColor = cv::Vec3b(255, 0, 255);
+//            int thickness = 2;
+//
+//            // Draw the text to the dest image
+//            cv::putText(dst, text, textCoords, cv::FONT_HERSHEY_SIMPLEX, fontScale, textColor, thickness, cv::LINE_AA);
+//        }
+//    }
+//
+//    // Convert the Hu Moment array to a vector for ease of use
+//    int n = sizeof(huMoments) / sizeof(huMoments[0]);
+//    std::vector<float> huVector(huMoments, huMoments + n);
+//    return huVector;
 //}
+
