@@ -8,27 +8,17 @@
 using namespace std;
 using namespace cv;
 
-std::vector<std::vector<float>> convert_features_to_float(const std::vector<region_features>& features) {
-    std::vector<std::vector<float>> float_features;
-    for (const auto& feature : features) {
-        std::vector<float> float_feature;
-        float_feature.push_back(feature.ratio); // Assuming ratio is a float
-        float_feature.push_back(feature.percent_filled); // Assuming percent_filled is a float
-        // Add other feature values as needed
-        float_features.push_back(float_feature);
-    }
-    return float_features;
-}
-
-// Data type to store image ID and distance from target image together
-struct ImageData {
-    // the image filename
-    std::string ID;
-    // the distance from the target image data
-    std::vector<float> featureVector;
-    // distance from frame
-    float distance;
-};
+//std::vector<std::vector<float>> convert_features_to_float(const std::vector<double>& features) {
+//    std::vector<std::vector<float>> float_features;
+//    for (const auto& feature : features) {
+//        std::vector<float> float_feature;
+//        float_feature.push_back(feature.ratio); // Assuming ratio is a float
+//        float_feature.push_back(feature.percent_filled); // Assuming percent_filled is a float
+//        // Add other feature values as needed
+//        float_features.push_back(float_feature);
+//    }
+//    return float_features;
+//}
 
 //struct region_features {
 //    float ratio;
@@ -72,6 +62,9 @@ int main(int argc, char* argv[]) {
     namedWindow("Video", 1);
 
     while (true) {
+
+        vector<float> feature;
+
         imshow("Target Image", imageMat);
 
         *capdev >> originalFrame;
@@ -85,8 +78,8 @@ int main(int argc, char* argv[]) {
         thresholdingFrame = thresholding(originalFrame, threshold);
         cleanUpFrame = morphological_operation(thresholdingFrame, cleanUpFrame);
         segmentedFrame = segment(cleanUpFrame, segmentedFrame, colorSegmentedFrame, labels, stats, centroids);
-        features.clear();
-        vector<float> allHuMoments = compute_features(segmentedFrame, featureImageFrame, features);
+        feature.clear();
+        int temp = compute_features(segmentedFrame, featureImageFrame, feature);
 
         imshow("After Thresholding", thresholdingFrame);
         //imshow("Clean Image", cleanUpFrame);
@@ -94,21 +87,41 @@ int main(int argc, char* argv[]) {
         //imshow("Colored Segmented image", colorSegmentedFrame);
         
         // Store the ID and feature vector of the image
-        ImageData currentImage;
+        struct ImageData *currentImage = (struct ImageData*)malloc(sizeof (struct ImageData*));
 
         // Store the huMoments vector as the database image's feature vector
-        currentImage.featureVector = allHuMoments;
-
-        append_image_data_csv(CSV_FILE, "huMoments", allHuMoments, 0);
-
-        // Append features to CSV file      
-        std::vector<std::vector<float>> features_data = convert_features_to_float(features);
-        append_image_data_csv(CSV_FILE, "Webcam Data", features_data[0], 0);
 
         imshow("Boxes and axis", featureImageFrame);
 
         // Exit loop if 'q' is pressed
         char c = (char)waitKey(5);
+        vector<ImageData*> csvData;
+
+        if (c == 'n' || c == 'N') {
+            cout << "N pressed: " << endl;
+            char label[20];
+            cout << "Enter the Label for the object : " << endl;
+            cin >> label;
+
+            //ImageData *img = new ImageData();
+            //img->label = label;
+            //img->featureVector = allHuMoments;
+            ////currentImage->label = label;
+            ////currentImage->featureVector = allHuMoments;
+
+            //
+            ////append_image_data_csv(CSV_FILE, "label", currentImage->featureVector, 0);
+
+            ////append_image_data_csv(CSV_FILE, "huMoments", allHuMoments, 0);
+            //
+            //// Append features to CSV file      
+            //std::vector<std::vector<float>> features_data = convert_features_to_float(feature);
+            //img->webCamData = features_data[0];
+
+            //csvData.push_back(img);
+            //append_image_data_csv(CSV_FILE, label, img, 0);
+            append_image_data_csv(CSV_FILE, label, feature, 0);
+        }
         if (c == 'q' || c == 27 || c == 'Q') { // 27 is ASCII for ESC
             break;
         }

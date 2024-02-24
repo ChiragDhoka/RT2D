@@ -10,19 +10,19 @@
 #ifndef CVS_UTIL_H
 #define CVS_UTIL_H
 
-/*
-  Given a filename, and image filename, and the image features, by
-  default the function will append a line of data to the CSV format
-  file.  If reset_file is true, then it will open the file in 'write'
-  mode and clear the existing contents.
+ /*
+   Given a filename, and image filename, and the image features, by
+   default the function will append a line of data to the CSV format
+   file.  If reset_file is true, then it will open the file in 'write'
+   mode and clear the existing contents.
 
-  The image filename is written to the first position in the row of
-  data. The values in image_data are all written to the file as
-  floats.
+   The image filename is written to the first position in the row of
+   data. The values in image_data are all written to the file as
+   floats.
 
-  The function returns a non-zero value in case of an error.
- */
-int append_image_data_csv( char *filename, char *image_filename, std::vector<float> &image_data, int reset_file = 0 );
+   The function returns a non-zero value in case of an error.
+  */
+int append_image_data_csv(char* filename, char* image_filename, std::vector<float>& image_data, int reset_file = 0);
 
 
 /*
@@ -39,6 +39,6 @@ int append_image_data_csv( char *filename, char *image_filename, std::vector<flo
 
   The function returns a non-zero value if something goes wrong.
  */
-int read_image_data_csv( char *filename, std::vector<char *> &filenames, std::vector<std::vector<float>> &data, int echo_file = 0 );
+int read_image_data_csv(char* filename, std::vector<char*>& filenames, std::vector<std::vector<float>>& data, int echo_file = 0);
 
 #endif

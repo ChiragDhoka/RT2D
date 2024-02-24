@@ -136,15 +136,13 @@ Mat morphological_operation(Mat src, Mat& dst) {
 
 Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& centroids) {
 
-    std::cout << "originalFrame channels: " << src.channels() << std::endl;
-
     //Mat gray_pic;
     //cvtColor(src, gray_pic, COLOR_BGR2GRAY);
     //std::cout << "originalFrame channels: " << gray_pic.channels() << std::endl;
 
     int num = connectedComponentsWithStats(src, labels, stats, centroids, 8);
 
-    std::cout << num << std::endl;
+    //std::cout << num << std::endl;
 
     // number of colors will equal to number of regions
     vector<Vec3b> colors(num);
@@ -193,7 +191,7 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
 /*------------------ TASK 4 ------------------------------------------------------------------*/
 /*Computes a set of features for a specified region given a region map and a region ID. */
 
-vector<float> compute_features(Mat src, Mat& dst, vector<region_features>& features) {
+int compute_features(Mat src, Mat& dst, vector<float>& features) {
     dst = src.clone();
 
     vector<vector<Point>> contours;
@@ -201,8 +199,6 @@ vector<float> compute_features(Mat src, Mat& dst, vector<region_features>& featu
     Mat gray_pic;
     cvtColor(src, gray_pic, COLOR_BGR2GRAY);
     findContours(gray_pic, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point());
-
-    vector<float> allHuMoments; // Container for all Hu Moments from all contours
 
     for (size_t i = 0; i < contours.size(); i++) {
         region_features tmp;
@@ -215,13 +211,16 @@ vector<float> compute_features(Mat src, Mat& dst, vector<region_features>& featu
         HuMoments(moment, hu);
 
         // Log transform Hu Moments for normalization and add them to the vector
-        for (int j = 0; j < 7; j++) {
-            hu[j] = -1 * copysign(1.0, hu[j]) * log10(abs(hu[j]));
-            allHuMoments.push_back(hu[j]); // Adding transformed Hu Moments to the list
+        for (int i = 0; i < 7; i++) {
+
+            hu[i] = -1 * copysign(1.0, hu[i]) * log10(abs(hu[i]));
+            features.push_back(hu[i]);
         }
 
         // Store the transformed Hu Moments in the struct as well
         tmp.huMoments.assign(hu, hu + 7);
+
+        
 
         // Calculating centroid
         Point2f centroid(moment.m10 / moment.m00, moment.m01 / moment.m00);
@@ -246,20 +245,22 @@ vector<float> compute_features(Mat src, Mat& dst, vector<region_features>& featu
         line(dst, centroid, endPoint, Scalar(255, 0, 0), 2, LINE_8); // Drawing red axis line
 
         // Store ratio and percent filled in the struct
-        tmp.ratio = width / height;
-        tmp.percent_filled = moment.m00 / (width * height);
+        float ratio = width / height;
+        float percent_filled = moment.m00 / (width * height);
 
-        features.push_back(tmp);
+        features.push_back(ratio);
+        features.push_back(percent_filled);
+        
     }
 
-    // Optionally, annotate features on the dst image
-    for (size_t i = 0; i < features.size(); ++i) {
-        stringstream ss;
-        ss << "Region " << i + 1 << ": Ratio=" << features[i].ratio << ", Percent Filled=" << features[i].percent_filled;
-        putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1);
-    }
+    //// Optionally, annotate features on the dst image
+    //for (size_t i = 0; i < features.size(); ++i) {
+    //    stringstream ss;
+    //    ss << "Region " << i + 1 << ": Ratio=" << features[i].ratio << ", Percent Filled=" << features[i].percent_filled;
+    //    putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1);
+    //}
 
-    return allHuMoments; // Return the flat list of all Hu Moments
+    return 0; // Return the flat list of all Hu Moments
 }
 
 /* Computes huMoment feature vector, computes and displays oriented bounding box
