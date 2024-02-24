@@ -121,7 +121,7 @@ Mat morphological_operation(Mat src, Mat& dst) {
     Mat erode = dilatedImage.clone();
 
     Mat erodedImage = customErode(erode, structElem);
-   
+
     dst = erodedImage;
 
     return dst;
@@ -147,12 +147,12 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
     // set background to black
     colors[0] = Vec3b(0, 0, 0);
     intensity[0] = Vec3b(0, 0, 0);
-    
+
     int area = 0;
-    
+
     for (int i = 1; i < num; i++) {
-        
-        colors[i] = Vec3b(255*i % 256, 170*i % 256, 200*i % 256);
+
+        colors[i] = Vec3b(255 * i % 256, 170 * i % 256, 200 * i % 256);
         intensity[i] = Vec3b(255, 255, 255);
 
         // keep only the largest region
@@ -217,7 +217,7 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         // Store the transformed Hu Moments in the struct as well
         tmp.huMoments.assign(hu, hu + 7);
 
-        
+
 
         // Calculating centroid
         Point2f centroid(moment.m10 / moment.m00, moment.m01 / moment.m00);
@@ -253,7 +253,7 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         stringstream ss;
         ss << "Region " << i + 1 << ": Ratio=" << ratio << ", Percent Filled=" << percent_filled;
         putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
-        
+
     }
 
     //// Optionally, annotate features on the dst image
@@ -353,3 +353,99 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
 //    return huVector;
 //}
 
+// Function to calculate scaled Euclidean distance between two feature vectors
+float euclideanDistance(vector<float> f1, vector<float> f2) {
+
+    float sum = 0;
+    for (int i = 0; i < f1.size(); i++)
+        sum += pow(f1[i] - f2[i], 2);
+
+    return sqrt(sum);
+}
+
+
+
+/// Need to chaneg teh code of scaled and standar deviatrion
+
+
+
+
+//Calculate the scaled Euclidean Distance of two features: |x1-x2|/st_dev
+float scaledEuclideanDis(std::vector<float>& feature1, std::vector<float>& feature2, std::vector<float>& deviations) {
+    float distance = 0.0;
+    for (int i = 0; i < feature1.size(); i++) {
+        distance += std::sqrt((feature1[i] - feature2[i]) * (feature1[i] - feature2[i]) / deviations[i]);//here is the square root
+    }
+    return distance;
+}
+
+//Calculate the standard deveation for each entry of the features in the database(for sacle), the result is not square rooted until next function.
+int standardDeviation(std::vector<std::vector<float>>& data, std::vector<float>& deviations) {
+    std::vector<float> sums = std::vector<float>(data[0].size(), 0.0); //sum of each entry
+    std::vector<float> avgs = std::vector<float>(data[0].size(), 0.0); //average of each entry
+    std::vector<float> sumSqure = std::vector<float>(data[0].size(), 0.0); //sum of suqared difference between x_i and x_avg
+    deviations = std::vector<float>(data[0].size(), 0.0); //final result(deviations not square rooted yet)
+
+    //first loop for the sum of each entry
+    for (int i = 0; i < data.size(); i++) {
+        for (int j = 0; j < data[0].size(); j++) {
+            sums[j] += data[i][j];
+        }
+    }
+
+    //calculate the avgs
+    for (int i = 0; i < sums.size(); i++) {
+        avgs[i] = sums[i] / data.size(); //average
+    }
+
+    //second loop, for the sum of  suqared difference of  each entry
+    for (int i = 0; i < data.size(); i++) {
+        for (int j = 0; j < data[0].size(); j++) {
+            sumSqure[j] += (data[i][j] - avgs[j]) * (data[i][j] - avgs[j]);
+        }
+    }
+
+    //the deviations
+    for (int i = 0; i < sumSqure.size(); i++) {
+        deviations[i] = sumSqure[i] / (data.size() - 1);
+    }
+
+    return 0;
+}
+
+/*
+* Simple classifier using euclidean distance
+* vector<vector<double>>  &features: Number of features read from csv
+* returns predicted label
+*/
+string classify(std::vector<float>& features) {
+
+    char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
+    //std::vector<std::string> labels;
+    std::vector<char*> labels;
+    std::vector<std::vector<float>> nfeatures;
+    read_image_data_csv(fileName, labels, nfeatures, 0);
+    
+    //for (auto it : labels) {
+    //    //cout << "TEST!";
+    //    cout << it;
+    //}
+    //readFromFile(fileName, labels, nfeatures);
+
+
+    double min_dist = std::numeric_limits<double>::infinity();
+    string min_label;
+    std::vector<float> deviations;
+    standardDeviation(nfeatures, deviations);
+    for (int i = 0; i < nfeatures.size(); i++) {
+
+        double dist = scaledEuclideanDis(nfeatures[i], features,deviations);
+        if (dist < min_dist) {
+           
+            min_dist = dist;
+            min_label = labels[i];
+        }
+        /*cout << dist;*/
+    }
+    return min_label;
+}

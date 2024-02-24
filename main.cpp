@@ -10,10 +10,10 @@ using namespace std;
 using namespace cv;
 
 //Path to CSV File
-char CSV_FILE[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+char CSV_FILE[256] = "D:/My source/Spring2024/PRCV/c++/recognition/features.csv";
 
 //path to Image File
-char IMAGE[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/Training_Data/Remote4.jpeg";
+char IMAGE[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/Training_Data/Box1.jpeg";
 
 //Declaring all the frames
 Mat originalFrame, thresholdingFrame, cleanUpFrame, segmentedFrame, colorSegmentedFrame, featureImageFrame, imageMat;
@@ -26,14 +26,14 @@ int image_nLabels;
 vector<region_features> features;
 
 int main(int argc, char* argv[]) {
-    
+
     //Thresholding Parameter
-    int threshold = 110;
+    int threshold = 50;
 
     imageMat = imread(IMAGE);
 
     // Open the video device
-    VideoCapture* capdev = new cv::VideoCapture(0);
+    VideoCapture* capdev = new cv::VideoCapture(2);
     if (!capdev->isOpened()) {
         printf("Unable to open video device\n");
         return -1;
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
         feature.clear();
 
         // Process image with thresholding and cleanup
-        thresholdingFrame = thresholding(imageMat, threshold);
+        thresholdingFrame = thresholding(originalFrame, threshold);
         cleanUpFrame = morphological_operation(thresholdingFrame, cleanUpFrame);
         segmentedFrame = segment(cleanUpFrame, segmentedFrame, colorSegmentedFrame, labels, stats, centroids);
         compute_features(segmentedFrame, featureImageFrame, feature);
@@ -84,6 +84,12 @@ int main(int argc, char* argv[]) {
             cin >> label;
 
             append_image_data_csv(CSV_FILE, label, feature);
+
+        }
+        else if (c == 'k') {
+            string temp = classify(feature);
+
+            cout << temp;
         }
         if (c == 'q' || c == 27 || c == 'Q') { // 27 is ASCII for ESC
             break;

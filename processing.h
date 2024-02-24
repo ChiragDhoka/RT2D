@@ -26,3 +26,10 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
 int compute_features(Mat src, Mat& dst, vector<float>& features);
 
 //std::vector<float> feature_computation(cv::Mat& src, cv::Mat& src_regions, cv::Mat& dst, cv::Mat stats, int nLabels);
+
+float euclideanDistance(vector<float> f1, vector<float> f2); 
+string classify(std::vector<float>& features);
+
+float scaledEuclideanDis(std::vector<float>& feature1, std::vector<float>& feature2, std::vector<float>& deviations);
+
+int standardDeviation(std::vector<std::vector<float>>& data, std::vector<float>& deviations);
