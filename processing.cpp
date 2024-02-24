@@ -121,7 +121,7 @@ Mat morphological_operation(Mat src, Mat& dst) {
     Mat erode = dilatedImage.clone();
 
     Mat erodedImage = customErode(erode, structElem);
-
+   
     dst = erodedImage;
 
     return dst;
@@ -136,9 +136,6 @@ Mat morphological_operation(Mat src, Mat& dst) {
 
 Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& centroids) {
 
-    //Mat gray_pic;
-    //cvtColor(src, gray_pic, COLOR_BGR2GRAY);
-    //std::cout << "originalFrame channels: " << gray_pic.channels() << std::endl;
 
     int num = connectedComponentsWithStats(src, labels, stats, centroids, 8);
 
@@ -150,12 +147,12 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
     // set background to black
     colors[0] = Vec3b(0, 0, 0);
     intensity[0] = Vec3b(0, 0, 0);
-
+    
     int area = 0;
-
+    
     for (int i = 1; i < num; i++) {
-
-        colors[i] = Vec3b(255 * i % 256, 170 * i % 256, 200 * i % 256);
+        
+        colors[i] = Vec3b(255*i % 256, 170*i % 256, 200*i % 256);
         intensity[i] = Vec3b(255, 255, 255);
 
         // keep only the largest region
@@ -220,7 +217,7 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         // Store the transformed Hu Moments in the struct as well
         tmp.huMoments.assign(hu, hu + 7);
 
-
+        
 
         // Calculating centroid
         Point2f centroid(moment.m10 / moment.m00, moment.m01 / moment.m00);
@@ -252,20 +249,19 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         features.push_back(percent_filled);
 
 
-
         // Annotate features on the dst image
         stringstream ss;
         ss << "Region " << i + 1 << ": Ratio=" << ratio << ", Percent Filled=" << percent_filled;
         putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
+        
     }
 
     //// Optionally, annotate features on the dst image
     //for (size_t i = 0; i < features.size(); ++i) {
     //    stringstream ss;
-    //    ss << "Region " << i + 1 << ": Ratio=" << feature[i].ratio << ", Percent Filled=" << feature[i].percent_filled;
+    //    ss << "Region " << i + 1 << ": Ratio=" << features[i].ratio << ", Percent Filled=" << features[i].percent_filled;
     //    putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1);
     //}
-
 
     return 0; // Return the flat list of all Hu Moments
 }
@@ -356,3 +352,4 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
 //    std::vector<float> huVector(huMoments, huMoments + n);
 //    return huVector;
 //}
+
