@@ -2,8 +2,11 @@
 #include <iostream>
 #include <vector>
 #include <stdio.h>
+#include <vector>
 #include <opencv2/opencv.hpp>
+#include "opencv2/dnn.hpp"
 #include "csv_util.h"
+#include "knn.cpp"
 
 using namespace std;
 using namespace cv;
@@ -187,7 +190,14 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
 
 /*------------------ TASK 4 ------------------------------------------------------------------*/
 /*Computes a set of features for a specified region given a region map and a region ID. */
-
+/* Computes huMoment feature vector, computes and displays oriented bounding box
+   Paramters: Mat src: binary image to be sampled from
+          Mat src_regions: colored_region image to sample for dst image
+          Mat dst: destination image, segmented, colored regions, bound box and first Hu Moment display
+          Mat stats: stats for bound box coordinates
+          int nLabels, number of regions in given frame
+   Returns:   Hu momoment feature vector of floating point numbers
+*/
 int compute_features(Mat src, Mat& dst, vector<float>& features) {
     dst = src.clone();
 
@@ -216,8 +226,6 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
 
         // Store the transformed Hu Moments in the struct as well
         tmp.huMoments.assign(hu, hu + 7);
-
-
 
         // Calculating centroid
         Point2f centroid(moment.m10 / moment.m00, moment.m01 / moment.m00);
@@ -255,118 +263,8 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
 
     }
-
-    //// Optionally, annotate features on the dst image
-    //for (size_t i = 0; i < features.size(); ++i) {
-    //    stringstream ss;
-    //    ss << "Region " << i + 1 << ": Ratio=" << features[i].ratio << ", Percent Filled=" << features[i].percent_filled;
-    //    putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(255, 255, 255), 1);
-    //}
-
-    return 0; // Return the flat list of all Hu Moments
+    return 0; 
 }
-
-/* Computes huMoment feature vector, computes and displays oriented bounding box
-   Paramters: Mat src: binary image to be sampled from
-          Mat src_regions: colored_region image to sample for dst image
-          Mat dst: destination image, segmented, colored regions, bound box and first Hu Moment display
-          Mat stats: stats for bound box coordinates
-          int nLabels, number of regions in given frame
-   Returns:   Hu momoment feature vector of floating point numbers
-*/
-//std::vector<float> feature_computation(cv::Mat& src, cv::Mat& src_regions, cv::Mat& dst, cv::Mat stats, int nLabels) {
-//
-//    // Necessary to get nLabels and stats, will refactor out later
-//    cv::Mat labels;
-//    cv::Mat centroids;
-//
-//    // Output of frame with bounding box
-//    dst = cv::Mat::zeros(src.size(), CV_8UC3);
-//    dst = src_regions;
-//
-//    int min_size = 400;
-//
-//
-//    // Calculate moments
-//    cv::Moments moments = cv::moments(src, false);
-//    // Calculate Hu Moments
-//    double huMoments[7];
-//    cv::HuMoments(moments, huMoments);
-//    // Resulting hu moments have a HUGE range, use a log transform to bring them to same range
-//    for (int i = 0; i < 7; i++) {
-//        huMoments[i] = -1 * copysign(1.0, huMoments[i]) * log10(abs(huMoments[i]));
-//    }
-//
-//
-//    //Use openCV's connectedComponentsWithStats
-//    // returns the a 4 tuple of the total number of unique labels
-//    //         a mask named labels that has the same spacial dimensions as our input image
-//    //         stats: statistics on each connected component, including bound box coords and area
-//    //         centroids: x,y coords of each connected component
-//    nLabels = cv::connectedComponentsWithStats(src, labels, stats, centroids);
-//
-//    // Obtain bound box coords for each object
-//    // Draw bound box for each object
-//    for (int label = 1; label < nLabels; label++) {
-//        if (stats.at<int>(label, cv::CC_STAT_AREA) >= min_size) {
-//            std::vector<cv::Point> points;
-//            // Store the point for the top left vertex
-//            cv::Point top_left = cv::Point(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP));
-//            points.push_back(top_left);
-//            // Store the point for the top right vertex
-//            cv::Point top_right = cv::Point(stats.at<int>(label, cv::CC_STAT_WIDTH) + stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP));
-//            points.push_back(top_right);
-//            // Store the point for the bottom left vertex
-//            cv::Point bottom_left = cv::Point(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP) + stats.at<int>(label, cv::CC_STAT_HEIGHT));
-//            points.push_back(bottom_left);
-//            // Store the point for the bottom right vertex
-//            cv::Point bottom_right = cv::Point(stats.at<int>(label, cv::CC_STAT_WIDTH) + stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_HEIGHT) + stats.at<int>(label, cv::CC_STAT_TOP));
-//
-//            // Create the box based on the coordinates
-//            cv::RotatedRect box = cv::minAreaRect(cv::Mat(points));
-//
-//            // Draw the bound box
-//            cv::Point2f vertices[4];
-//            box.points(vertices);
-//            for (int i = 0; i < 4; ++i) {
-//                cv::line(dst, vertices[i], vertices[(i + 1) % 4], cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
-//            }
-//
-//
-//            // Display first region HuMoment for each region underneath the bounding box
-//            std::string firstHu = std::to_string(huMoments[0]);
-//            std::string text = "hu[0] =" + firstHu;
-//            cv::Point textCoords = (cv::Point(stats.at<int>(label, cv::CC_STAT_LEFT), stats.at<int>(label, cv::CC_STAT_TOP) + stats.at<int>(label, cv::CC_STAT_HEIGHT) + 40));
-//            //cv::Font font = cv::FONT_HERSHEY_SIMPLEX;
-//            int fontScale = 1;
-//            cv::Vec3b textColor = cv::Vec3b(255, 0, 255);
-//            int thickness = 2;
-//
-//            // Draw the text to the dest image
-//            cv::putText(dst, text, textCoords, cv::FONT_HERSHEY_SIMPLEX, fontScale, textColor, thickness, cv::LINE_AA);
-//        }
-//    }
-//
-//    // Convert the Hu Moment array to a vector for ease of use
-//    int n = sizeof(huMoments) / sizeof(huMoments[0]);
-//    std::vector<float> huVector(huMoments, huMoments + n);
-//    return huVector;
-//}
-
-// Function to calculate scaled Euclidean distance between two feature vectors
-float euclideanDistance(vector<float> f1, vector<float> f2) {
-
-    float sum = 0;
-    for (int i = 0; i < f1.size(); i++)
-        sum += pow(f1[i] - f2[i], 2);
-
-    return sqrt(sum);
-}
-
-
-
-/// Need to chaneg teh code of scaled and standar deviatrion
-
 
 
 
@@ -414,25 +312,20 @@ int standardDeviation(std::vector<std::vector<float>>& data, std::vector<float>&
 }
 
 /*
-* Simple classifier using euclidean distance
+* Simple classifier using Scaled euclidean distance
 * vector<vector<double>>  &features: Number of features read from csv
 * returns predicted label
 */
-string classify(std::vector<float>& features) {
+string classify(vector<float>& features) {
 
-    char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
+    //char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
+    char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+    
     //std::vector<std::string> labels;
     std::vector<char*> labels;
     std::vector<std::vector<float>> nfeatures;
     read_image_data_csv(fileName, labels, nfeatures, 0);
     
-    //for (auto it : labels) {
-    //    //cout << "TEST!";
-    //    cout << it;
-    //}
-    //readFromFile(fileName, labels, nfeatures);
-
-
     double min_dist = std::numeric_limits<double>::infinity();
     string min_label;
     std::vector<float> deviations;
@@ -449,3 +342,178 @@ string classify(std::vector<float>& features) {
     }
     return min_label;
 }
+
+/*-------------------------------------------------- DNN-----------------------------------------*/
+
+/*
+  cv::Mat src        thresholded and cleaned up image in 8UC1 format
+  cv::Mat ebmedding  holds the embedding vector after the function returns
+  cv::Rect bbox      the axis-oriented bounding box around the region to be identified
+  cv::dnn::Net net   the pre-trained network
+  int debug          1: show the image given to the network and print the embedding, 0: don't show extra info
+ */
+int getEmbedding(cv::Mat& src, cv::Mat& embedding, cv::Rect& bbox, cv::dnn::Net& net,  int debug) {
+    const int ORNet_size = 128;
+    cv::Mat padImg;
+    cv::Mat blob;
+
+    cv::Mat roiImg = src(bbox);
+    int top = bbox.height > 128 ? 10 : (128 - bbox.height) / 2 + 10;
+    int left = bbox.width > 128 ? 10 : (128 - bbox.width) / 2 + 10;
+    int bottom = top;
+    int right = left;
+
+    cv::copyMakeBorder(roiImg, padImg, top, bottom, left, right, cv::BORDER_CONSTANT, 0);
+    cv::resize(padImg, padImg, cv::Size(400, 400));
+
+    cv::dnn::blobFromImage(src, // input image
+        blob, // output array
+        (1.0 / 255.0) / 0.5, // scale factor
+        cv::Size(ORNet_size, ORNet_size), // resize the image to this
+        128,   // subtract mean prior to scaling
+        false, // input is a single channel image
+        true,  // center crop after scaling short side to size
+        CV_32F); // output depth/type
+
+    net.setInput(blob);
+    embedding = net.forward("onnx_node!/fc1/Gemm");
+
+
+    if (debug) {
+        cv::imshow("pad image", padImg);
+        std::cout << embedding << std::endl;
+        cv::waitKey(0);
+    }
+
+    return(0);
+}
+
+float euclideanDistance(vector<float>& f1, vector<float>& f2) {
+
+    float sum = 0;
+    for (int i = 0; i < f1.size(); i++)
+        sum += pow((f1[i] - f2[i]), 2);
+    return sqrt(sum);
+}
+
+/*
+* Simple classifier using euclidean distance
+* vector<vector<double>>  &features: Number of features read from csv
+* returns predicted label
+*/
+string classifyDNN(vector<float>& features) {
+
+    //char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
+    char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+
+    //std::vector<std::string> labels;
+    std::vector<char*> labels;
+    std::vector<std::vector<float>> nfeatures;
+    read_image_data_csv(fileName, labels, nfeatures, 0);
+
+    double min_dist = std::numeric_limits<double>::infinity();
+    string min_label;
+    std::vector<float> deviations;
+    //standardDeviation(nfeatures, deviations);
+    for (int i = 0; i < nfeatures.size(); i++) {
+
+        double dist = euclideanDistance(nfeatures[i], features);
+        if (dist < min_dist) {
+
+            min_dist = dist;
+            min_label = labels[i];
+        }
+        /*cout << dist;*/
+    }
+    
+    return min_label;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*--------------------------KNN------------------------------------------------------*/
+
+//class Data {
+//public:
+//    float distance;
+//    std::string label;
+//    std::vector<float> features;
+//    Data() {
+//        distance = 0;
+//    }
+//};
+//
+//float euclideanDistance(std::vector<float>& f1, std::vector<float>& f2) {
+//    double sum = 0;
+//    for (int i = 0; i < f1.size(); i++)
+//        sum += pow((f1[i] - f2[i]), 2);
+//    return sqrt(sum);
+//}
+//
+//bool cmp(Data& a, Data& b) {
+//    return a.distance < b.distance;
+//}
+//
+//double manhattanDistance(std::vector<double>& f1, std::vector<double>& f2) {
+//    double sum = 0;
+//    for (int i = 0; i < f1.size(); i++)
+//        sum += abs(f1[i] - f2[i]);
+//    return sum;
+//}
+//
+//void fillDistances(std::vector<float>& query, std::vector<float>& nfeatures, char*& labels, std::vector<Data>& data) {
+//    for (int i = 0; i < labels.size(); i++) {
+//        Data data_point;
+//        data_point.label = labels[i];
+//        data_point.features = nfeatures[i];
+//        data_point.distance = euclideanDistance(data_point.features, query[0]);
+//        data.push_back(data_point);
+//    }
+//}
+//
+//string KNN(std::vector<float>& feature, int k) {
+//
+//    //char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
+//    char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+//
+//    //std::vector<std::string> labels;
+//    std::vector<char*> labels;
+//    std::vector<std::vector<float>> nfeatures;
+//    read_image_data_csv(fileName, labels, nfeatures, 0);
+//
+//    vector<Data> data;
+//
+//    //filling the distances between all points and test
+//    fillDistances(feature, nfeatures, labels, data);
+//
+//    //sorting so that we can get the k nearest
+//    sort(data.begin(), data.end(), cmp);
+//
+//    if (data[0].distance > 10)
+//        return "unknown";
+//
+//    map<string, int> count;
+//    int max = -1;
+//    string mode_label;
+//
+//    for (int i = 0; i < k; i++) {
+//        count[data[i].label] += 1;
+//        if (count[data[i].label] > max) {
+//            max = count[data[i].label];
+//            mode_label = data[i].label;
+//        }
+//        //cout << "label: " << data[i].label << " distance: " << data[i].distance << endl;
+//    }
+//
+//    return mode_label;
+//}

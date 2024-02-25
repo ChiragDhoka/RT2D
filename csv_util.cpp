@@ -163,14 +163,14 @@ int read_image_data_csv( char *filename, std::vector<char *> &filenames, std::ve
   FILE *fp;
   float fval;
   char img_file[256];
-  printf("blahablah");
+  //printf("blahablah");
   fp = fopen(filename, "r");
   if( !fp ) {
     printf("Unable to open feature file\n");
     return(-1);
   }
 
-  printf("Reading %s\n", filename);
+  printf("Reading Database\n");
   for(;;) {
     std::vector<float> dvec;
     
