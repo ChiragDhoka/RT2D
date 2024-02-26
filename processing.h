@@ -29,7 +29,7 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
 /* We compute the features of the region/object detected, features like huMoments, ratio and percent filled
  * and pushes these features in the features to help us append it to the databsae 
  */
-int compute_features(Mat src, Mat& dst, vector<float>& features, string& text2);
+int compute_features(Mat src, Mat& dst, vector<float>& features);
 
 /* This function helps to classify the objects from the database using the scaled eucledian distance */
 string classify(std::vector<float>& features);
