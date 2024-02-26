@@ -1,5 +1,11 @@
-﻿//main.cpp
-#include <iostream>
+﻿/* main.cpp
+ *
+ * created by Keval Visaria and Chirag Jain Dhoka
+ *
+ * This file contains all the process of key press and calling all the function in order from the processing.h and csv_util.h files.
+ * 
+ *
+ */
 #include <stdio.h>
 #include <opencv2/opencv.hpp>
 #include <filesystem>
@@ -10,50 +16,60 @@
 #include <map>
 #include "processing.h"
 #include "csv_util.h"
-//#include "knn.h"
 
 using namespace std;
 using namespace cv;
 
+/* Different Mode Flags */
 bool trainingModeFlag = false;
 bool recognizeModeFlag = false;
 bool dnnModeFlag = false;
+bool confusionMode = false;
+bool trainingDNNModeFLag = false;
 
-//Path to CSV File
+
+/* Path to CSV File for Basic Classification and DNN Classification
+ * CSV_FILE will store 9 Feature vectors
+ * CSV_DNN will store 50 feature vectors
+*/
 char CSV_FILE[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
 char CSV_DNN[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database_DNN.csv";
-//path to Image File
-char IMAGE[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/Training_Data/Box1.jpeg";
 
-//Declaring all the frames
+/* Path to Image File */ 
+char IMAGE[256] = "C:/Users/visar/Downloads/earpods6.jpg";
+
+/*This is for TASK 9 - pre-trained deep network file*/
+/* mode file was given */
+string mod_filename = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/or2d-normmodel-007.onnx";
+
+/* Declaring all the Frame */
 Mat originalFrame, thresholdingFrame, cleanUpFrame, segmentedFrame, colorSegmentedFrame, featureImageFrame, imageMat;
 
-// Store connectcomponents() parameters 
+/* Store connectcomponents() parameters */ 
 Mat labels, stats, centroids;
 int image_nLabels;
 
-//Vector to store images
-vector<region_features> features;
-
-std::vector<float> matToVector(const cv::Mat& mat) {
-    std::vector<float> vec;
-    // Ensure that the input matrix is not empty
-    if (!mat.empty()) {
-        // Iterate through the matrix elements
-        for (int i = 0; i < mat.rows; ++i) {
-            for (int j = 0; j < mat.cols; ++j) {
-                // Push the element into the vector
-                vec.push_back(mat.at<float>(i, j));
-            }
-        }
-    }
-    return vec;
-}
 
 int main(int argc, char* argv[]) {
 
+    /* Creating a Map of the objects that are in the database
+     * this will help us int computing the confusion vector
+    */
+
+    std::map<std::string, int> mpp;
+    mpp["box"] = 1;
+    mpp["remote"] = 2;
+    mpp["case"] = 3;
+    mpp["wallet"] = 4;
+    mpp["mouse"] = 5;
+
+    vector<vector<int>> confusionMat(5, vector<int>(5, 0));
+
     //Thresholding Parameter
-    int threshold = 50;
+    int threshold = 135;
+
+    // read the pre-trained deep network
+    cv::dnn::Net net = cv::dnn::readNet(mod_filename);
 
     imageMat = imread(IMAGE);
 
@@ -76,108 +92,224 @@ int main(int argc, char* argv[]) {
 
     while (true) {
 
+        /* Initializing the vector to store the features */
         vector<float> feature;
         vector<float> embeddingFeature;
 
-        imshow("Target Image", imageMat);
+        /* display the Image */
+        //imshow("Target Image", imageMat);
+       
 
         *capdev >> originalFrame;
         if (originalFrame.empty()) {
             cerr << "Frame is empty" << endl;
             break;
         }
-        //imshow("Video", originalFrame);
+        imshow("Video", originalFrame);
 
         feature.clear();
 
         // Process image with thresholding and cleanup
-        thresholdingFrame = thresholding(originalFrame, threshold);
+        /* te original Image is processed that is threshlding and cleanup */
+        thresholdingFrame = thresholding(originalFrame, threshold); 
         cleanUpFrame = morphological_operation(thresholdingFrame, cleanUpFrame);
         segmentedFrame = segment(cleanUpFrame, segmentedFrame, colorSegmentedFrame, labels, stats, centroids);
         compute_features(segmentedFrame, featureImageFrame, feature);
 
+
         //imshow("After Thresholding", thresholdingFrame);
-        imshow("Clean Image", cleanUpFrame);
+        //imshow("Clean Image", cleanUpFrame);
         imshow("Segmented image", segmentedFrame);
         imshow("Boxes and axis", featureImageFrame);
 
-        // Exit loop if 'q' is pressed
-        char key = waitKey(5);
+        /* Waiting for a key press from the user */
+
+        char key = waitKey(25);
+        /* Press N to enter a normal TraingingMode */
         if (key == 'n' || key == 'N') {
+            
             trainingModeFlag = true;
         }
+        /* Press m to enter DNN training Mode */
+        if (key == 'm') {
+            trainingDNNModeFLag = true;
+        }
+        /* Press r to recognize the object */
         else if (key == 'r' || key == 'R') {
             recognizeModeFlag = true;
         }
-        else if (key == 'k' || key == 'K') {
+        /* Press k to recoginze object from the DNN database*/
+        else if (key == 'd' || key == 'D') {
             dnnModeFlag = true;
         }
-        if (key == 'q' || key == 27 || key == 'Q') { // 27 is ASCII for ESC
+        /* Press C to enter confusion Matrix mode */
+        else if (key == 'c' || key == 'C') {
+            confusionMode = true;
+        }
+        /* Press q to exit the program */
+        if (key == 'q' || key == 'Q') { // 27 is ASCII for ESC
             break;
         }
 
+        /* Operation of each Modes */
+        /* Each mode will have a sequence of operation */
+        /* In Training Mode we will train our dataset with the data that is unknown 
+         * when the user presses n it goes to training mode and user is asked for Label 
+         * and the concurrent data along with the label get stored in the CSV file.
+        */
         if (trainingModeFlag) {
+            cout << "---------------------------------------" << endl;
+            /* Taking the Label name from the User */
             cout << "Training Mode " << endl;
             char label[20];
             cout << "Enter the Label for the object : " << endl;
             cin >> label;
 
+            /* Saves the features under the label provided from the user and saves it in the given CSV_fILE */
             append_image_data_csv(CSV_FILE, label, feature,0);
 
+            /* To exit the Traingin Mode */
             cout << "Exit Trainging Mode!" << endl;
+            cout << "---------------------------------------" << endl;
             trainingModeFlag = false;
-
         }
         else if (recognizeModeFlag) {
+            /* In Recognize Mode we do prediction of the object using th features of the trained data stored in our databas (CSV file). 
+             * we are taking scaled Eucledian Distance and then finding the minimum distance and giving then least label associated with it.  
+             */
+            cout << "---------------------------------------" << endl;
             cout << "Recognize Mode " << endl;
+
+            /* Detect what the object and will display the label associated with it on a string*/
             string temp1 = classify(feature);
             
+            /* Printing the Label String*/
             cout << "The Object is: " << temp1 << endl;
 
+            /* To exit the Recogonize Mode*/
             cout << "Exiting Recognize Mode!" << endl;
+            cout << "---------------------------------------" << endl;
             recognizeModeFlag = false;
         }
-        else if (dnnModeFlag) {
-            cout << "KNN Mode" << endl;
+        else if (trainingDNNModeFLag) {
+            /* This for Task 9*/
+            /* We are using Pre-trained deep Network for this task
+             * we get a embedding vector which is getting stored in a vector declared above.
+             * and then similarly like Task 6 running a distance metric and finding out the nearest distance and the assicoated label to it.
+            */
+            cout << "---------------------------------------" << endl;
+            cout << "DNN Training Mode " << endl;
 
-            string mod_filename = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/or2d-normmodel-007.onnx";
-            // read the network
-            cv::dnn::Net net = cv::dnn::readNet(mod_filename);
-            printf("Network read successfully\n");
-
-            /// print the names of the layers
-            std::vector<cv::String> names = net.getLayerNames();
-
-            for (int i = 0; i < names.size(); i++) {
-                printf("Layer %d: '%s'\n", i, names[i].c_str());
-            }
-
-            // read image and convert it to greyscale
-            cv::Mat src = cv::imread(IMAGE);
-            cv::cvtColor(src, src, cv::COLOR_BGR2GRAY);
+            /* Taking the Label from the User */
+            char label[20];
+            cout << "Enter the Label for the object : " << endl;
+            cin >> label;
 
             // the getEmbedding function wants a rectangle that contains the object to be recognized
-            cv::Rect bbox(0, 0, src.cols, src.rows);
+            cv::Rect bbox(0, 0, thresholdingFrame.cols, thresholdingFrame.rows);
 
             // get the embedding
             cv::Mat embedding;
-            getEmbedding(src, embedding, bbox, net, 1);  // change the 1 to a 0 to turn off debugging
+            getEmbedding(thresholdingFrame, embedding, bbox, net, 1);  // change the 1 to a 0 to turn off debugging
 
+            /* the embedding data received above is in a matrix form 
+             * So usin the matToVector function to convert it into a vector<float>.
+             * This will make it easy to push to the database (csv file).
+             */
             embeddingFeature = matToVector(embedding);
-            cout << embeddingFeature[0] << endl;
-            append_image_data_csv(CSV_DNN, IMAGE, embeddingFeature, 0);
 
-            //string temp2 = classifyDNN(embeddingFeature);
+            /* Appending or adding the embeddings vector in the database_DNN.csv 
+             * along with the label. We have a different CSV file for the features that we get from getEmbedding function.
+             * this is beacuse we are receiving 50 features for each label (object detected).
+            */
+            append_image_data_csv(CSV_DNN, label, embeddingFeature, 0);
 
-            //cout << "The Object is: " << temp2 << endl;
+            /* To exit the DNN Training Mode */
+            cout << "Exit DNN Trainging Mode!" << endl;
+            cout << "---------------------------------------" << endl;
+            trainingDNNModeFLag = false;
+        }
+        else if (dnnModeFlag) {
+            /* In this part we are saving the embedding feature vectors in the database_DNN
+             * Here similarly to task 5 we are taking a label from the user for and then saving the embedding feature vector obtained
+             * from the object into the database_DNN.csv file
+            */
+            
+            cout << "---------------------------------------" << endl;
+            cout << "DNN Mode" << endl;
 
-            //cout << "Exiting KNN Mode" << endl;
+            //cv::cvtColor(originalFrame, originalFrame, cv::COLOR_BGR2GRAY);
 
+            // the getEmbedding function wants a rectangle that contains the object to be recognized
+            Rect bbox(0, 0, thresholdingFrame.cols, thresholdingFrame.rows);
+
+            // get the embedding
+            Mat embedding;
+            getEmbedding(thresholdingFrame, embedding, bbox, net, 1);  // change the 1 to a 0 to turn off debugging
+
+            /* the embedding data received above is in a matrix form
+             * So usin the matToVector function to convert it into a vector<float>.
+             * This will make it easy to push to the database (csv file).
+             */
+            embeddingFeature = matToVector(embedding);
+
+            /* Here we run a function similar to the task 6 but instead of the normal databse we use dabase_DNN 
+             * We use the normal eucledian distance metric to search for the nearet neighbor and then save the label to a string temp2
+             */
+            string temp2 = classifyDNN(embeddingFeature);
+
+            /* Displaying what the object is */
+            cout << "The Object is: " << temp2 << endl;
+
+            //putText(segmentedFrame, ss.str(), Point(10, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 255), 1);
+            
+            /* Exiting the DNN classification Mode */
+            cout << "Exiting KNN Mode" << endl;
             dnnModeFlag = false;
+            cout << "---------------------------------------" << endl;
+        }
+        else if (confusionMode) {
+            /* In Confusion Matrix mode we try to compare the actual object and the predicted object and try to make a matrix out this
+             * this will help us to interpret how good or bad our classification logic function is and how its accuray.
+             */
+            /* Here we ask the user to what is the actual object in the frame*/
+            cout << "---------------------------------------" << endl;
+            cout << "Confusion Matrix Mode" << endl;
+            string confLabel;
+            cout << "Enter the Actual Object Label: " << endl;
+            cin >> confLabel;
+
+            /* Here the actualLabel will be detected and the accordingly the index of the matrix will be updated
+            */
+            int actualLabel = mpp[confLabel] - 1;
+
+            /* Here we run the classify to detect the object that is the the predicted data and thus updating that index of the matric*/
+            string rand = classify(feature);
+            int predLabel = mpp[classify(feature)] - 1;
+
+            /* Printing the index of the Matrix for reference*/
+            cout << "Confusion Matrix: " << predLabel << "," << actualLabel << endl;
+
+            /* Updating the element/cell of the Matrix +1  */
+            confusionMat[actualLabel][predLabel]++;
+
+            /* Printing the Matrix to visualize */
+            cout << "Confusion Matrix elements:" << endl;
+            for (const auto& row : confusionMat) {
+                for (const auto& element : row) {
+                    cout << element << " ";
+                }
+                cout << endl;
+            }
+
+            /* Exiting the COnfusion Matrix Mode */
+            cout << "Exiting the COnfusion Matriix Mode!" << endl;
+            cout << "---------------------------------------" << endl;
+            confusionMode = false;
         }
     }
 
-    // Clean up
+    /* Cleaing the frames on exiting the program */
     capdev->release();
     destroyAllWindows();
 

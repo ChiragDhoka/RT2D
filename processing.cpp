@@ -1,4 +1,11 @@
-//processing.cpp
+/* processing.cpp
+ * 
+ * created by Keval Visaria and Chirag Jain Dhoka
+ * 
+ * This file contains all the processing function for the object segmentation, detection and classification
+ * 
+ */
+
 #include <iostream>
 #include <vector>
 #include <stdio.h>
@@ -6,27 +13,22 @@
 #include <opencv2/opencv.hpp>
 #include "opencv2/dnn.hpp"
 #include "csv_util.h"
-#include "knn.cpp"
 
 using namespace std;
 using namespace cv;
 
-/*Stores the features of a region */
-struct region_features {
-    double ratio;
-    double percent_filled;
-    vector<double> huMoments;
-};
-
-/*------------------ TASK 1 ------------------------------------------------------------------*/
-/*Separate the object from the back ground according to a threshold */
+/* Separate the object from the back ground according to a threshold given as the second parameter 
+ * and the orginalFrame (either the image or the webcam feed) as the first param. 
+*/
 Mat thresholding(Mat& src, int threshold) {
 
+    /* Converting the image into greyscale*/
     Mat Thresh_Image, grayscale;
     Thresh_Image = Mat(src.size(), CV_8UC1);
 
     cvtColor(src, grayscale, COLOR_BGR2GRAY);
 
+    /* Changing the pixel value or the thresholdMatrix as per the threshold parameter provided*/
     int i = 0;
     while (i < grayscale.rows) {
         int j = 0;
@@ -45,19 +47,18 @@ Mat thresholding(Mat& src, int threshold) {
     return Thresh_Image;
 }
 
-/*------------------ TASK 2 ------------------------------------------------------------------*/
-/* Function for cleaning up the binary image, uses morphological filtering to first shrink any unexpected noise,
-   then grows back to clean up holes in the image. Uses erosion followed by dilation to remove noise, then
+
+
+/* Function for cleaning up the binary image, uses morphological filtering to first dilate any clean up holes in the image,
+   then erode any noies in the image. Uses dilation followed by erosion to remove noise, then
    dilation followed by erosion to remove the holes caused by the reflections.
-   Parameters: src, a binary mat object that will be cleaned up
-   Returns: A cleaned up binary Mat image
 */
 vector<vector<int>> createStructuringElement(int rows, int cols) {
     vector<vector<int>> element(rows, vector<int>(cols, 1));
     return element;
 }
 
-// Custom erosion function
+/* Custom erosion function */
 Mat customErode(const Mat& src, const vector<vector<int>>& element) {
     Mat dst = src.clone();
     int elementRows = element.size();
@@ -87,7 +88,7 @@ Mat customErode(const Mat& src, const vector<vector<int>>& element) {
     return dst;
 }
 
-// Custom dilation function
+/* Custom dilation function */ 
 Mat customDilate(const Mat& src, const vector<vector<int>>& element) {
     Mat dst = src.clone();
     int elementRows = element.size();
@@ -114,6 +115,10 @@ Mat customDilate(const Mat& src, const vector<vector<int>>& element) {
     return dst;
 }
 
+
+/* Commutes erode and dilation on the src Mat 
+ /* return the dst frame
+*/
 Mat morphological_operation(Mat src, Mat& dst) {
 
     Mat dilated = src.clone();
@@ -131,14 +136,11 @@ Mat morphological_operation(Mat src, Mat& dst) {
 }
 
 
-/*------------------ TASK 3 ------------------------------------------------------------------*/
 /*Function for connected component analysis, creates segmented, region-colored version of the src image
   Parameters: a src image to be sampled from, then Mat data types for labels, stats, and centroid calculation.
   Returns: a segmented, region colored version of the src image
 */
-
 Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& centroids) {
-
 
     int num = connectedComponentsWithStats(src, labels, stats, centroids, 8);
 
@@ -147,6 +149,7 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
     // number of colors will equal to number of regions
     vector<Vec3b> colors(num);
     vector<Vec3b> intensity(num);
+
     // set background to black
     colors[0] = Vec3b(0, 0, 0);
     intensity[0] = Vec3b(0, 0, 0);
@@ -188,15 +191,13 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
 }
 
 
-/*------------------ TASK 4 ------------------------------------------------------------------*/
-/*Computes a set of features for a specified region given a region map and a region ID. */
-/* Computes huMoment feature vector, computes and displays oriented bounding box
-   Paramters: Mat src: binary image to be sampled from
-          Mat src_regions: colored_region image to sample for dst image
-          Mat dst: destination image, segmented, colored regions, bound box and first Hu Moment display
-          Mat stats: stats for bound box coordinates
-          int nLabels, number of regions in given frame
-   Returns:   Hu momoment feature vector of floating point numbers
+
+
+
+
+/* This function calculates a set of features for a specific area based on a region map and a region identifier. 
+ * It computes the Hu moments feature vector and visualizes an oriented bounding box around the area of interest. 
+ * The function returns a vector of floating-point numbers representing the Hu moments feature vector for the specified region.
 */
 int compute_features(Mat src, Mat& dst, vector<float>& features) {
     dst = src.clone();
@@ -208,7 +209,6 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
     findContours(gray_pic, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point());
 
     for (size_t i = 0; i < contours.size(); i++) {
-        region_features tmp;
 
         // Calculating Moments for each contour
         Moments moment = moments(contours[i], false);
@@ -223,9 +223,6 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
             hu[i] = -1 * copysign(1.0, hu[i]) * log10(abs(hu[i]));
             features.push_back(hu[i]);
         }
-
-        // Store the transformed Hu Moments in the struct as well
-        tmp.huMoments.assign(hu, hu + 7);
 
         // Calculating centroid
         Point2f centroid(moment.m10 / moment.m00, moment.m01 / moment.m00);
@@ -256,7 +253,6 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         features.push_back(ratio);
         features.push_back(percent_filled);
 
-
         // Annotate features on the dst image
         stringstream ss;
         ss << "Region " << i + 1 << ": Ratio=" << ratio << ", Percent Filled=" << percent_filled;
@@ -268,7 +264,8 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
 
 
 
-//Calculate the scaled Euclidean Distance of two features: |x1-x2|/st_dev
+
+/* Calculate the scaled Euclidean Distance of two features: |x1-x2|/st_dev */
 float scaledEuclideanDis(std::vector<float>& feature1, std::vector<float>& feature2, std::vector<float>& deviations) {
     float distance = 0.0;
     for (int i = 0; i < feature1.size(); i++) {
@@ -277,11 +274,19 @@ float scaledEuclideanDis(std::vector<float>& feature1, std::vector<float>& featu
     return distance;
 }
 
-//Calculate the standard deveation for each entry of the features in the database(for sacle), the result is not square rooted until next function.
+
+
+
+/* Calculate the standard deveation for each entry of the features in the database (for scale), 
+ * the result is not square rooted until next function */
 int standardDeviation(std::vector<std::vector<float>>& data, std::vector<float>& deviations) {
+
     std::vector<float> sums = std::vector<float>(data[0].size(), 0.0); //sum of each entry
+    
     std::vector<float> avgs = std::vector<float>(data[0].size(), 0.0); //average of each entry
+    
     std::vector<float> sumSqure = std::vector<float>(data[0].size(), 0.0); //sum of suqared difference between x_i and x_avg
+    
     deviations = std::vector<float>(data[0].size(), 0.0); //final result(deviations not square rooted yet)
 
     //first loop for the sum of each entry
@@ -311,39 +316,70 @@ int standardDeviation(std::vector<std::vector<float>>& data, std::vector<float>&
     return 0;
 }
 
+
+
+
+
+
 /*
 * Simple classifier using Scaled euclidean distance
 * vector<vector<double>>  &features: Number of features read from csv
 * returns predicted label
 */
+void standardDeviation(const vector<vector<float>>& features, vector<float>& deviations) {
+    int numFeatures = features.empty() ? 0 : features[0].size();
+    deviations.resize(numFeatures, 0.0);
+    vector<float> means(numFeatures, 0.0);
+
+    // Calculating means
+    for (const auto& feature : features) {
+        for (int i = 0; i < numFeatures; i++) {
+            means[i] += feature[i];
+        }
+    }
+    for (float& mean : means) {
+        mean /= features.size();
+    }
+
+    // Calculating standard deviations.
+    for (const auto& feature : features) {
+        for (int i = 0; i < numFeatures; i++) {
+            deviations[i] += pow(feature[i] - means[i], 2);
+        }
+    }
+    for (float& deviation : deviations) {
+        deviation = sqrt(deviation / features.size());
+    }
+}
+
 string classify(vector<float>& features) {
 
     //char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
     char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
-    
+
     //std::vector<std::string> labels;
     std::vector<char*> labels;
     std::vector<std::vector<float>> nfeatures;
     read_image_data_csv(fileName, labels, nfeatures, 0);
-    
+
     double min_dist = std::numeric_limits<double>::infinity();
     string min_label;
     std::vector<float> deviations;
     standardDeviation(nfeatures, deviations);
     for (int i = 0; i < nfeatures.size(); i++) {
 
-        double dist = scaledEuclideanDis(nfeatures[i], features,deviations);
+        double dist = scaledEuclideanDis(nfeatures[i], features, deviations);
         if (dist < min_dist) {
-           
+
             min_dist = dist;
             min_label = labels[i];
+            cout << "DIST: " << dist << endl;
         }
         /*cout << dist;*/
     }
+
     return min_label;
 }
-
-/*-------------------------------------------------- DNN-----------------------------------------*/
 
 /*
   cv::Mat src        thresholded and cleaned up image in 8UC1 format
@@ -378,16 +414,18 @@ int getEmbedding(cv::Mat& src, cv::Mat& embedding, cv::Rect& bbox, cv::dnn::Net&
     net.setInput(blob);
     embedding = net.forward("onnx_node!/fc1/Gemm");
 
-
     if (debug) {
-        cv::imshow("pad image", padImg);
-        std::cout << embedding << std::endl;
-        cv::waitKey(0);
+        //cv::imshow("pad image", padImg);
+        //std::cout << embedding << std::endl;
+        //cv::waitKey(0);
     }
 
     return(0);
 }
 
+
+
+/* This function finds the Euclidean distance between the 2 vectors*/
 float euclideanDistance(vector<float>& f1, vector<float>& f2) {
 
     float sum = 0;
@@ -395,6 +433,41 @@ float euclideanDistance(vector<float>& f1, vector<float>& f2) {
         sum += pow((f1[i] - f2[i]), 2);
     return sqrt(sum);
 }
+
+
+/* The cosDistance fucntion takes the dot product of the 2 distances */
+float cosDistance(const vector<float>& v1, const vector<float>& v2) {
+    float dotProduct = 0.0;
+    float normV1 = 0.0;
+    float normV2 = 0.0;
+
+    for (size_t i = 0; i < v1.size(); ++i) {
+        dotProduct += v1[i] * v2[i];
+        normV1 += v1[i] * v1[i];
+        normV2 += v2[i] * v2[i];
+    }
+
+    normV1 = sqrt(normV1);
+    normV2 = sqrt(normV2);
+
+    if (normV1 == 0.0 || normV2 == 0.0) {
+        return 0.0; // Prevent division by zero
+    }
+    else {
+        return dotProduct / (normV1 * normV2);
+    }
+}
+
+
+double sumSquaredDifference(const vector<float>& a, const vector<float>& b) {
+    double sum = 0.0;
+    for (size_t i = 0; i < a.size(); i++) {
+        sum += (a[i] - b[i]) * (a[i] - b[i]);
+    }
+    return sum;
+}
+
+
 
 /*
 * Simple classifier using euclidean distance
@@ -404,7 +477,7 @@ float euclideanDistance(vector<float>& f1, vector<float>& f2) {
 string classifyDNN(vector<float>& features) {
 
     //char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
-    char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
+    char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database_DNN.csv";
 
     //std::vector<std::string> labels;
     std::vector<char*> labels;
@@ -412,21 +485,49 @@ string classifyDNN(vector<float>& features) {
     read_image_data_csv(fileName, labels, nfeatures, 0);
 
     double min_dist = std::numeric_limits<double>::infinity();
+
+
     string min_label;
-    std::vector<float> deviations;
+    //std::vector<float> deviations;
     //standardDeviation(nfeatures, deviations);
+
+    cout << nfeatures.size() << endl;
     for (int i = 0; i < nfeatures.size(); i++) {
 
         double dist = euclideanDistance(nfeatures[i], features);
+        //cout << "EUC DIS: " << dist << endl;
         if (dist < min_dist) {
-
+            
             min_dist = dist;
             min_label = labels[i];
+            cout << "Label: " << min_label << endl;
+            cout << "Dist: " << dist << endl;
         }
-        /*cout << dist;*/
+        
     }
     
     return min_label;
+}
+
+
+
+/* The function will help to convert a Matrix into a vector<float> type.
+* THis function was used to convert the embedding matrix from DNN into a vector<float> type 
+* to append in the CSV file.
+*/
+std::vector<float> matToVector(const cv::Mat& mat) {
+    std::vector<float> vec;
+    // Ensure that the input matrix is not empty
+    if (!mat.empty()) {
+        // Iterate through the matrix elements
+        for (int i = 0; i < mat.rows; ++i) {
+            for (int j = 0; j < mat.cols; ++j) {
+                // Push the element into the vector
+                vec.push_back(mat.at<float>(i, j));
+            }
+        }
+    }
+    return vec;
 }
 
 
@@ -436,84 +537,3 @@ string classifyDNN(vector<float>& features) {
 
 
 
-
-
-
-
-
-/*--------------------------KNN------------------------------------------------------*/
-
-//class Data {
-//public:
-//    float distance;
-//    std::string label;
-//    std::vector<float> features;
-//    Data() {
-//        distance = 0;
-//    }
-//};
-//
-//float euclideanDistance(std::vector<float>& f1, std::vector<float>& f2) {
-//    double sum = 0;
-//    for (int i = 0; i < f1.size(); i++)
-//        sum += pow((f1[i] - f2[i]), 2);
-//    return sqrt(sum);
-//}
-//
-//bool cmp(Data& a, Data& b) {
-//    return a.distance < b.distance;
-//}
-//
-//double manhattanDistance(std::vector<double>& f1, std::vector<double>& f2) {
-//    double sum = 0;
-//    for (int i = 0; i < f1.size(); i++)
-//        sum += abs(f1[i] - f2[i]);
-//    return sum;
-//}
-//
-//void fillDistances(std::vector<float>& query, std::vector<float>& nfeatures, char*& labels, std::vector<Data>& data) {
-//    for (int i = 0; i < labels.size(); i++) {
-//        Data data_point;
-//        data_point.label = labels[i];
-//        data_point.features = nfeatures[i];
-//        data_point.distance = euclideanDistance(data_point.features, query[0]);
-//        data.push_back(data_point);
-//    }
-//}
-//
-//string KNN(std::vector<float>& feature, int k) {
-//
-//    //char fileName[256] = "D:/My source/Spring2024/PRCV/c++/recognition/RT2D/database.csv";
-//    char fileName[256] = "C:/Users/visar/Desktop/OneDrive - Northeastern University/PRCV/RT3D/RT3D/database.csv";
-//
-//    //std::vector<std::string> labels;
-//    std::vector<char*> labels;
-//    std::vector<std::vector<float>> nfeatures;
-//    read_image_data_csv(fileName, labels, nfeatures, 0);
-//
-//    vector<Data> data;
-//
-//    //filling the distances between all points and test
-//    fillDistances(feature, nfeatures, labels, data);
-//
-//    //sorting so that we can get the k nearest
-//    sort(data.begin(), data.end(), cmp);
-//
-//    if (data[0].distance > 10)
-//        return "unknown";
-//
-//    map<string, int> count;
-//    int max = -1;
-//    string mode_label;
-//
-//    for (int i = 0; i < k; i++) {
-//        count[data[i].label] += 1;
-//        if (count[data[i].label] > max) {
-//            max = count[data[i].label];
-//            mode_label = data[i].label;
-//        }
-//        //cout << "label: " << data[i].label << " distance: " << data[i].distance << endl;
-//    }
-//
-//    return mode_label;
-//}
