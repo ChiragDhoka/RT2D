@@ -27,6 +27,8 @@ bool dnnModeFlag = false;
 bool confusionMode = false;
 bool trainingDNNModeFLag = false;
 
+bool flag1 = false;
+bool flag2 = false;
 
 /* Path to CSV File for Basic Classification and DNN Classification
  * CSV_FILE will store 9 Feature vectors
@@ -49,12 +51,19 @@ Mat originalFrame, thresholdingFrame, cleanUpFrame, segmentedFrame, colorSegment
 Mat labels, stats, centroids;
 int image_nLabels;
 
+//int fontFace = FONT_HERSHEY_SIMPLEX;
+//double fontScale = 1;
+//int thickness = 2;
+//Scalar textColor(0, 255, 0);
 
 int main(int argc, char* argv[]) {
+
+    
 
     /* Creating a Map of the objects that are in the database
      * this will help us int computing the confusion vector
     */
+    string temp;
 
     std::map<std::string, int> mpp;
     mpp["box"] = 1;
@@ -74,7 +83,7 @@ int main(int argc, char* argv[]) {
     imageMat = imread(IMAGE);
 
     // Open the video device
-    VideoCapture* capdev = new cv::VideoCapture(0);
+    VideoCapture* capdev = new cv::VideoCapture(2);
     if (!capdev->isOpened()) {
         printf("Unable to open video device\n");
         return -1;
@@ -109,38 +118,54 @@ int main(int argc, char* argv[]) {
 
         feature.clear();
 
-        // Process image with thresholding and cleanup
+         //Process image with thresholding and cleanup
         /* te original Image is processed that is threshlding and cleanup */
         thresholdingFrame = thresholding(originalFrame, threshold); 
         cleanUpFrame = morphological_operation(thresholdingFrame, cleanUpFrame);
         segmentedFrame = segment(cleanUpFrame, segmentedFrame, colorSegmentedFrame, labels, stats, centroids);
-        compute_features(segmentedFrame, featureImageFrame, feature);
+        compute_features(segmentedFrame, featureImageFrame, feature, temp);
 
 
         //imshow("After Thresholding", thresholdingFrame);
         //imshow("Clean Image", cleanUpFrame);
-        imshow("Segmented image", segmentedFrame);
         imshow("Boxes and axis", featureImageFrame);
+        //imshow("Colored Segmented Frame", colorSegmentedFrame);
+        imshow("Segmented image", segmentedFrame);
 
         /* Waiting for a key press from the user */
 
         char key = waitKey(25);
         /* Press N to enter a normal TraingingMode */
         if (key == 'n' || key == 'N') {
-            
             trainingModeFlag = true;
         }
         /* Press m to enter DNN training Mode */
-        if (key == 'm') {
+        if (key == 'm'|| key == 'M') {
             trainingDNNModeFLag = true;
         }
         /* Press r to recognize the object */
         else if (key == 'r' || key == 'R') {
-            recognizeModeFlag = true;
+            if (!recognizeModeFlag) {
+                cout << "Recognize Mode " << endl;
+                recognizeModeFlag = !recognizeModeFlag;
+            }
+            else {
+                recognizeModeFlag = !recognizeModeFlag;
+                cout << "Exiting Recognize Mode!" << endl;
+            }
         }
         /* Press k to recoginze object from the DNN database*/
         else if (key == 'd' || key == 'D') {
-            dnnModeFlag = true;
+            //dnnModeFlag = true;
+            if (!dnnModeFlag) {
+                cout << "DNN Recoginize Mode " << endl;
+                dnnModeFlag = !dnnModeFlag;
+            }
+            else
+            {
+                dnnModeFlag = !dnnModeFlag;
+                cout << "Exiting DNN Recognize Mode!" << endl;
+            }
         }
         /* Press C to enter confusion Matrix mode */
         else if (key == 'c' || key == 'C') {
@@ -168,6 +193,7 @@ int main(int argc, char* argv[]) {
             /* Saves the features under the label provided from the user and saves it in the given CSV_fILE */
             append_image_data_csv(CSV_FILE, label, feature,0);
 
+            //recognizeModeFlag = true;
             /* To exit the Traingin Mode */
             cout << "Exit Trainging Mode!" << endl;
             cout << "---------------------------------------" << endl;
@@ -178,18 +204,37 @@ int main(int argc, char* argv[]) {
              * we are taking scaled Eucledian Distance and then finding the minimum distance and giving then least label associated with it.  
              */
             cout << "---------------------------------------" << endl;
-            cout << "Recognize Mode " << endl;
 
             /* Detect what the object and will display the label associated with it on a string*/
-            string temp1 = classify(feature);
-            
-            /* Printing the Label String*/
-            cout << "The Object is: " << temp1 << endl;
+            temp = classify(feature);
+                 
+            //char key2 = waitKey(25);
 
+            /* Printing the Label String*/
+            cout << "The Object is: " << temp << endl;
+
+            if (temp == "Unknown" && flag1 == false) {
+                //flag1 = true;
+                if (flag2 == false) {
+                    cout << "Do you want to train?(y/n)" << endl;
+                    flag2 = true;
+                }
+                char key2 = waitKey(1);
+                //cin >> key2;
+
+                if (key2 == 'y') {
+                    trainingModeFlag = true;
+                    recognizeModeFlag = false;
+                }
+                else if (key2 == 'n') {
+                    flag1 = true;
+                    recognizeModeFlag = true;
+                }
+            }
             /* To exit the Recogonize Mode*/
-            cout << "Exiting Recognize Mode!" << endl;
-            cout << "---------------------------------------" << endl;
-            recognizeModeFlag = false;
+            //cout << "Exiting Recognize Mode!" << endl;
+            //cout << "---------------------------------------" << endl;
+            //recognizeModeFlag = false;
         }
         else if (trainingDNNModeFLag) {
             /* This for Task 9*/
@@ -256,16 +301,33 @@ int main(int argc, char* argv[]) {
             /* Here we run a function similar to the task 6 but instead of the normal databse we use dabase_DNN 
              * We use the normal eucledian distance metric to search for the nearet neighbor and then save the label to a string temp2
              */
-            string temp2 = classifyDNN(embeddingFeature);
+            temp = classifyDNN(embeddingFeature);
 
             /* Displaying what the object is */
-            cout << "The Object is: " << temp2 << endl;
+            cout << "The Object is: " << temp << endl;
 
-            //putText(segmentedFrame, ss.str(), Point(10, 30), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 255), 1);
             
+            if (temp == "Unknown" && flag1 == false) {
+                //flag1 = true;
+                if (flag2 == false) {
+                    cout << "Do you want to train?(y/n)" << endl;
+                    flag2 = true;
+                }
+                char key2 = waitKey(1);
+                //cin >> key2;
+
+                if (key2 == 'y') {
+                    trainingModeFlag = true;
+                    recognizeModeFlag = false;
+                }
+                else if (key2 == 'n') {
+                    flag1 = true;
+                    recognizeModeFlag = true;
+                }
+            }
             /* Exiting the DNN classification Mode */
-            cout << "Exiting KNN Mode" << endl;
-            dnnModeFlag = false;
+            //cout << "Exiting DNN Mode" << endl;
+            //dnnModeFlag = false;
             cout << "---------------------------------------" << endl;
         }
         else if (confusionMode) {
@@ -284,8 +346,16 @@ int main(int argc, char* argv[]) {
             int actualLabel = mpp[confLabel] - 1;
 
             /* Here we run the classify to detect the object that is the the predicted data and thus updating that index of the matric*/
-            string rand = classify(feature);
-            int predLabel = mpp[classify(feature)] - 1;
+            //string rand = classify(feature);
+            
+            Rect bbox(0, 0, thresholdingFrame.cols, thresholdingFrame.rows);
+            Mat embedding;
+            getEmbedding(thresholdingFrame, embedding, bbox, net, 1);  // change the 1 to a 0 to turn off debugging
+            embeddingFeature = matToVector(embedding);
+            string rand = classifyDNN(embeddingFeature);
+
+            cout << "Pred:  " << rand << endl;
+            int predLabel = mpp[rand] - 1;
 
             /* Printing the index of the Matrix for reference*/
             cout << "Confusion Matrix: " << predLabel << "," << actualLabel << endl;
@@ -303,10 +373,20 @@ int main(int argc, char* argv[]) {
             }
 
             /* Exiting the COnfusion Matrix Mode */
-            cout << "Exiting the COnfusion Matriix Mode!" << endl;
+            cout << "Exiting the Confusion Matriix Mode!" << endl;
             cout << "---------------------------------------" << endl;
             confusionMode = false;
         }
+
+
+        //stringstream ss;
+
+
+        //ss << "The Object is: " << temp1;
+
+        //Point textPosition(100, 100); // Adjust the position as needed
+        ////putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
+        //putText(segmentedFrame, ss.str(), Point(10, 30 + 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
     }
 
     /* Cleaing the frames on exiting the program */

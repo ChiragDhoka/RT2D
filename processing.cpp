@@ -187,6 +187,8 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
     dst = intensity_img.clone();
     colored_dst = colored_img.clone();
 
+
+    
     return dst;
 }
 
@@ -199,7 +201,7 @@ Mat segment(Mat src, Mat& dst, Mat& colored_dst, Mat& labels, Mat& stats, Mat& c
  * It computes the Hu moments feature vector and visualizes an oriented bounding box around the area of interest. 
  * The function returns a vector of floating-point numbers representing the Hu moments feature vector for the specified region.
 */
-int compute_features(Mat src, Mat& dst, vector<float>& features) {
+int compute_features(Mat src, Mat& dst, vector<float>& features,string& text2) {
     dst = src.clone();
 
     vector<vector<Point>> contours;
@@ -258,6 +260,13 @@ int compute_features(Mat src, Mat& dst, vector<float>& features) {
         ss << "Region " << i + 1 << ": Ratio=" << ratio << ", Percent Filled=" << percent_filled;
         putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
 
+        stringstream aa;
+        aa << "The Object is: " << text2;
+
+        Point textPosition(100, 100); // Adjust the position as needed
+        //putText(dst, ss.str(), Point(10, 30 + static_cast<int>(i) * 20), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 1);
+        putText(dst, aa.str(), Point(100, 400), FONT_HERSHEY_SIMPLEX, 0.7, Scalar(0, 0, 255), 2, LINE_AA);
+        
     }
     return 0; 
 }
@@ -369,15 +378,18 @@ string classify(vector<float>& features) {
     for (int i = 0; i < nfeatures.size(); i++) {
 
         double dist = scaledEuclideanDis(nfeatures[i], features, deviations);
+        
         if (dist < min_dist) {
 
             min_dist = dist;
             min_label = labels[i];
-            cout << "DIST: " << dist << endl;
+            //cout << "DIST: " << dist << endl;
         }
+        //else {
+        //    min_label = "Unknown";
+        //}
         /*cout << dist;*/
     }
-
     return min_label;
 }
 
@@ -488,21 +500,24 @@ string classifyDNN(vector<float>& features) {
 
 
     string min_label;
-    //std::vector<float> deviations;
-    //standardDeviation(nfeatures, deviations);
+    std::vector<float> deviations;
+    standardDeviation(nfeatures, deviations);
 
     cout << nfeatures.size() << endl;
     for (int i = 0; i < nfeatures.size(); i++) {
 
-        double dist = euclideanDistance(nfeatures[i], features);
+        double dist = scaledEuclideanDis(nfeatures[i], features, deviations);
         //cout << "EUC DIS: " << dist << endl;
         if (dist < min_dist) {
-            
+
             min_dist = dist;
             min_label = labels[i];
-            cout << "Label: " << min_label << endl;
-            cout << "Dist: " << dist << endl;
+            //cout << "Label: " << min_label << endl;
+            //cout << "Dist: " << dist << endl;
         }
+        //else{
+        //    min_label = "Unknown";
+        //}
         
     }
     
